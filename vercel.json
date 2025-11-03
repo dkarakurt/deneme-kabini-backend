@@ -11,8 +11,5 @@
       "src": "/api/(.*)",
       "dest": "/api/$1"
     }
-  ],
-  "env": {
-    "NANO_BANANA_API_KEY": "@nano-banana-api-key"
-  }
+  ]
 }
