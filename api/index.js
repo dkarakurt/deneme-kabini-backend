@@ -5,7 +5,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // CORS - Tüm headerları ekle
+  // CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -29,17 +29,9 @@ export default async function handler(req, res) {
     }
 
     console.log('🚀 Starting virtual try-on...');
+    console.log('📝 Description:', description);
 
-    // 1. Base64 görsellerini upload et
-    console.log('📤 Uploading images to Fal.ai...');
-    const garmentUrl = await uploadImageToFal(garmentImage, FAL_KEY);
-    const personUrl = await uploadImageToFal(personImage, FAL_KEY);
-    
-    console.log('✅ Upload complete');
-    console.log('Garment URL:', garmentUrl);
-    console.log('Person URL:', personUrl);
-
-    // 2. IDM-VTON API çağır (Queue API kullan)
+    // IDM-VTON API çağır - Base64 direkt gönder!
     console.log('🎨 Submitting to IDM-VTON...');
     
     const submitResponse = await fetch('https://queue.fal.run/fal-ai/idm-vton', {
@@ -49,8 +41,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        human_image_url: personUrl,
-        garment_image_url: garmentUrl,
+        human_image_url: personImage,      // Base64 direkt kabul ediyor!
+        garment_image_url: garmentImage,   // Base64 direkt kabul ediyor!
         description: description || 'garment',
         num_inference_steps: 30,
         seed: Math.floor(Math.random() * 100000)
@@ -60,7 +52,7 @@ export default async function handler(req, res) {
     if (!submitResponse.ok) {
       const errorText = await submitResponse.text();
       console.error('Submit error:', errorText);
-      throw new Error(`Submit failed: ${submitResponse.status}`);
+      throw new Error(`Submit failed: ${submitResponse.status} - ${errorText}`);
     }
 
     const submitData = await submitResponse.json();
@@ -68,7 +60,7 @@ export default async function handler(req, res) {
     
     console.log('⏳ Request ID:', requestId);
 
-    // 3. Sonuç için polling yap
+    // Sonuç için polling yap
     const statusUrl = `https://queue.fal.run/fal-ai/idm-vton/requests/${requestId}/status`;
     
     for (let i = 0; i < 60; i++) {
@@ -112,7 +104,7 @@ export default async function handler(req, res) {
       
       if (statusData.status === 'FAILED') {
         console.error('Generation failed:', statusData);
-        throw new Error('Image generation failed');
+        throw new Error('Image generation failed: ' + JSON.stringify(statusData));
       }
     }
     
@@ -124,55 +116,5 @@ export default async function handler(req, res) {
       success: false, 
       error: error.message 
     });
-  }
-}
-
-// Base64 görselini Fal.ai storage'a upload et
-async function uploadImageToFal(base64Image, falKey) {
-  try {
-    // Base64'ü temizle
-    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
-    
-    // Buffer'a çevir
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    // Fal.ai storage endpoint
-    const uploadUrl = 'https://fal.run/fal-ai/idm-vton/files';
-    
-    // Multipart form data oluştur
-    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
-    const formDataParts = [];
-    
-    formDataParts.push(`--${boundary}`);
-    formDataParts.push('Content-Disposition: form-data; name="file"; filename="image.jpg"');
-    formDataParts.push('Content-Type: image/jpeg');
-    formDataParts.push('');
-    
-    const formDataBuffer = Buffer.concat([
-      Buffer.from(formDataParts.join('\r\n') + '\r\n'),
-      buffer,
-      Buffer.from(`\r\n--${boundary}--\r\n`)
-    ]);
-    
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Key ${falKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`
-      },
-      body: formDataBuffer
-    });
-    
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
-    }
-    
-    const uploadData = await uploadResponse.json();
-    return uploadData.url || uploadData.file_url;
-    
-  } catch (error) {
-    console.error('Upload error:', error);
-    throw new Error(`Image upload failed: ${error.message}`);
   }
 }
