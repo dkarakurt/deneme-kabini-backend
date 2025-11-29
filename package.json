@@ -1,5 +1,20 @@
 {
   "name": "deneme-kabini-backend",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {}
 }
+```
+
+**"type": "module"** satırını ekleyin!
+
+4. **Commit changes**
+
+---
+
+## 🧪 Şimdi Test Edin:
+
+1. Vercel otomatik redeploy yapacak (30 saniye)
+2. Şu URL'yi tarayıcıda test edin:
+```
+https://deneme-kabini-backend-338t.vercel.app/api
